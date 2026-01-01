@@ -13,15 +13,16 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "الرادار شغال والفحص مستمر..."
+    return "الرادار يعمل والفحص مستمر في الخلفية..."
 
-def run_web():
-    # تشغيل السيرفر على البورت المطلوب من رندر
+def run_flask():
+    # تشغيل سيرفر الويب لإبقاء Render صاحي
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
 def check_sakani():
-    url = "https://sakani.sa/api/v2/land_projects?per_page=100"
+    # رابط شامل لفحص جميع مشاريع المملكة المتاحة
+    url = "https://sakani.sa/api/v2/land_projects?per_page=100&sort_by=available_units_count"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
@@ -29,33 +30,38 @@ def check_sakani():
             projects = response.json().get('projects', [])
             for p in projects:
                 if p.get('available_units_count', 0) > 0:
-                    return f"🚨 صيدة! أرض في {p['city_name']} - {p['name']}"
+                    return f"🚨 لقطنا أرض بمخطط: {p['name']} في {p['city_name']}\nالعدد المتاح: {p['available_units_count']}"
     except Exception as e:
-        print(f"⚠️ خطأ فحص: {e}")
+        print(f"⚠️ خطأ أثناء الفحص: {e}")
     return None
 
-def main_worker():
-    # ننتظر قليلاً حتى يعمل سيرفر الويب
+def monitor():
+    # ننتظر 5 ثواني ليتأكد السيرفر من العمل
     time.sleep(5)
-    bot.send_message(CHAT_ID, "🚀 الرادار بدأ الفحص الفعلي الآن.. راقب اللوق!")
+    bot.send_message(CHAT_ID, "🚀 تم تفعيل الرادار بنجاح. اللوق سيبدأ بالتحديث الآن كل 15 ثانية.")
+    
     while True:
-        # هذه الجملة هي التي ستجعل اللوق "يحدث" أمامك
-        current_time = time.strftime('%H:%M:%S')
-        print(f"[{current_time}] 🔍 جاري فحص جميع المخططات الآن...")
-        
-        found = check_sakani()
-        if found:
-            bot.send_message(CHAT_ID, found)
-            print(f"[{current_time}] 🎯 تم العثور على أرض!")
-            time.sleep(300)
+        try:
+            # هذه الجملة ستظهر في اللوق (Logs) أمامك غصب عن السيرفر
+            current_time = time.strftime('%H:%M:%S')
+            print(f"[{current_time}] 🔍 جاري البحث في سيرفرات سكني...")
+            
+            result = check_sakani()
+            if result:
+                bot.send_message(CHAT_ID, result)
+                print(f"[{current_time}] 🎯 تم العثور على صيد!")
+                time.sleep(300) # راحة بعد الصيد
+            
+        except Exception as e:
+            print(f"❌ خطأ في اللوب الأساسي: {e}")
         
         time.sleep(15) # فحص كل 15 ثانية
 
 if __name__ == "__main__":
-    # 1. تشغيل سيرفر الويب في الخلفية
-    t = Thread(target=run_web)
+    # 1. تشغيل Flask في الخلفية
+    t = Thread(target=run_flask)
     t.daemon = True
     t.start()
     
-    # 2. تشغيل حلقة الفحص الأساسية
-    main_worker()
+    # 2. تشغيل عملية المراقبة في المسار الأساسي
+    monitor()
